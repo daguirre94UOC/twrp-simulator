@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Simulador TWRP · Nexus 5 (hammerhead)</title>
+<style>
+:root{--bg:#e6e8eb;--fg:#1c2127;--muted:#5d6670;--card:#fff;--line:#cdd2d8;--acc:#0a78b4;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d0f12;--fg:#e4e6e9;--muted:#8f98a2;--card:#191d22;--line:#2b3138;--acc:#3db2ee;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0d0f12;--fg:#e4e6e9;--muted:#8f98a2;--card:#191d22;--line:#2b3138;--acc:#3db2ee;color-scheme:dark}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column;align-items:center;-webkit-tap-highlight-color:transparent}
+.top{width:100%;max-width:520px;padding:10px 14px 2px;display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.top h1{font-size:15px;margin:0;font-weight:650}
+.top span{font-size:12px;color:var(--muted)}
+.stage{display:flex;justify-content:center;padding:8px 0;width:100%}
+.phone{--w:min(92vw,420px,calc((100vh - 180px) * .5018));width:var(--w);aspect-ratio:69.2/137.9;position:relative;border-radius:10.5%/5.3%;background:linear-gradient(160deg,#2b2b2e,#141415 38%,#0a0a0b);box-shadow:0 0 0 1.5px #3b3b3f,inset 0 0 0 2px #050505,0 16px 36px rgba(0,0,0,.35)}
+@supports (height:100dvh){.phone{--w:min(92vw,420px,calc((100dvh - 180px) * .5018))}}
+.spk{position:absolute;top:4.6%;left:50%;width:24%;height:.9%;transform:translateX(-50%);border-radius:99px;background:repeating-linear-gradient(90deg,#222 0 2px,#090909 2px 4px)}
+.cam{position:absolute;top:4.15%;left:68%;width:3.4%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 40% 40%,#33415c,#05070a 62%)}
+.led{position:absolute;bottom:4.6%;left:50%;width:2.2%;aspect-ratio:1;transform:translateX(-50%);border-radius:50%;background:#151515}
+.sb{position:absolute;width:1.7%;border:0;padding:0;background:#1f1f22;cursor:pointer;border-radius:2px}
+.sb:active{filter:brightness(1.8)}
+.sb.pw{right:-1.4%;top:22%;height:8%}
+.sb.vu{left:-1.4%;top:19%;height:6.6%}
+.sb.vd{left:-1.4%;top:25.8%;height:6.6%}
+.screen{position:absolute;left:5.6%;right:5.6%;top:10.3%;height:79.4%;background:#000;overflow:hidden;container-type:inline-size;border-radius:3px}
+body.bare .phone{--w:min(100vw,calc((100vh - 150px) * .5625));aspect-ratio:9/16;border-radius:0;background:none;box-shadow:none}
+@supports (height:100dvh){body.bare .phone{--w:min(100vw,calc((100dvh - 150px) * .5625))}}
+body.bare .screen{left:0;right:0;top:0;height:100%;border-radius:0}
+body.bare .spk,body.bare .cam,body.bare .led,body.bare .sb{display:none}
+.hw{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;padding:0 10px}
+.hw button{font:inherit;font-size:13px;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+.hw button:active{background:var(--acc);color:#fff;border-color:var(--acc)}
+.hw button:focus-visible,.tools button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.tools{display:flex;gap:4px;margin-top:4px}
+.tools button{font:inherit;font-size:12.5px;background:none;border:0;color:var(--acc);padding:6px 8px;cursor:pointer}
+.notice{font-size:12.5px;line-height:1.4;color:var(--muted);max-width:420px;text-align:center;margin:2px 16px 14px;min-height:1.4em;transition:opacity .4s}
+
+/* ===== Recovery (dentro de la pantalla) ===== */
+.inner{position:absolute;inset:0;font-size:3.9cqw;line-height:1.3;font-family:Roboto,"Droid Sans","Segoe UI",system-ui,sans-serif;color:#e8e8e8;user-select:none;-webkit-user-select:none;
+--t-bg:#141414;--t-head:#1b1b1b;--t-btn:#262626;--t-line:#333;--t-acc:#1fa0dd;--t-dim:#9a9a9a;--t-ok:#5fd16b;--t-err:#ff5a52}
+.inner button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.inner button:focus-visible{outline:.12em solid var(--t-acc);outline-offset:.08em}
+#ui{position:absolute;inset:0;display:none;flex-direction:column;background:var(--t-bg)}
+.tw-head{display:flex;justify-content:space-between;align-items:flex-end;padding:.75em .85em .5em;background:var(--t-head);border-bottom:.14em solid var(--t-acc);flex:none}
+.tw-name{font-weight:600;font-size:.86em;line-height:1.2}
+.tw-ver{color:var(--t-acc);font-size:.78em}
+.tw-r{text-align:right}
+.tw-clock{font-size:1.15em;font-weight:500}
+.tw-stat{font-size:.68em;color:var(--t-dim)}
+.tw-mid{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
+.tw-title{padding:.5em .85em;font-size:1.02em;color:var(--t-acc);font-weight:600;border-bottom:1px solid #262626;flex:none}
+.tw-page{flex:1;min-height:0;overflow:auto;padding:.65em .85em .85em;display:flex;flex-direction:column;gap:.5em}
+.tw-page.fill{overflow:hidden}
+.tw-page.main{padding:.75em}
+.grid{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr;gap:.55em;flex:1}
+.grid>:last-child:nth-child(odd){grid-column:span 2}
+.mbtn{background:var(--t-btn);border:1px solid #303030;border-radius:.35em;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.45em;padding:.5em;font-size:1em!important}
+.mbtn .ico{width:2.3em;height:2.3em;color:var(--t-acc)}
+.mbtn:active,.btn:active,.fb-item:active{background:var(--t-acc);color:#fff}
+.mbtn:active .ico{color:#fff}
+svg{display:block;width:100%;height:100%}
+.row{display:flex;gap:.5em;flex:none}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:.5em}
+.btn{background:#2b2b2b;border:1px solid #3b3b3b;padding:.72em .5em;border-radius:.3em;font-size:.88em!important;flex:1;line-height:1.15}
+.btn:disabled{opacity:.4}
+.info{margin:0;font-size:.92em}
+.dim{color:var(--t-dim)}
+.warn{margin:0;color:#ffc04d;font-size:.9em}
+.warn.big{font-size:1.05em;text-align:center;margin:1.2em 0}
+.kv{font-size:.88em;word-break:break-all}
+.store{flex:1;font-size:.82em;color:var(--t-dim);align-self:center}
+.chk{display:flex;align-items:center;gap:.7em;padding:.45em .15em;background:none;border:0;text-align:left;width:100%;flex:none}
+.chk:disabled{opacity:.4}
+.chk .box{width:1.2em;height:1.2em;border:.12em solid #8a8a8a;border-radius:.15em;flex:none;display:grid;place-items:center}
+.chk.on .box{background:var(--t-acc);border-color:var(--t-acc)}
+.chk.on .box::after{content:"";width:.32em;height:.62em;border:solid #fff;border-width:0 .14em .14em 0;transform:translateY(-.06em) rotate(45deg)}
+.chk.radio .box{border-radius:50%}
+.chk.radio.on .box{background:none}
+.chk.radio.on .box::after{width:.55em;height:.55em;border:0;border-radius:50%;background:var(--t-acc);transform:none}
+.lbl{font-size:.92em}
+.lbl.small{font-size:.78em;word-break:break-all}
+.namebtn{background:#202020;border:1px solid #333;border-radius:.3em;padding:.6em;text-align:left;font-size:.88em!important;flex:none}
+.sw{position:relative;height:3.3em;background:#1d1d1d;border:1px solid #333;border-radius:.35em;margin-top:auto;flex:none;overflow:hidden}
+.sw-fill{position:absolute;left:0;top:0;bottom:0;width:2.7em;background:rgba(31,160,221,.18)}
+.sw-label{position:absolute;inset:0;display:grid;place-items:center;color:#c8c8c8;font-size:.9em;padding-left:4.6em;pointer-events:none}
+.sw-thumb{position:absolute;left:.25em;top:.25em;bottom:.25em;width:4.6em;background:var(--t-acc);border-radius:.28em;display:grid;place-items:center;touch-action:none;cursor:grab;color:#fff}
+.sw-thumb svg{width:1.6em;height:1.6em}
+.fb{display:flex;flex-direction:column;gap:.3em}
+.fb-path{color:var(--t-acc);font-size:.8em;word-break:break-all}
+.fb-list{display:flex;flex-direction:column;border-top:1px solid #262626}
+.fb-item{display:flex;align-items:center;gap:.6em;padding:.55em .25em;border:0;border-bottom:1px solid #242424;background:none;text-align:left;width:100%}
+.fi{width:1.3em;height:1.3em;flex:none;color:var(--t-dim)}
+.fb-item.dir .fi{color:#e6b84a}
+.fb-item.up .fi{color:var(--t-acc)}
+.fn{font-size:.86em;word-break:break-all}
+.con{background:#0a0a0a;font-family:"Droid Sans Mono",ui-monospace,Menlo,Consolas,monospace;font-size:.64em;line-height:1.38;padding:.55em;overflow:auto;white-space:pre-wrap;word-break:break-word;color:#d6d6d6;user-select:text;-webkit-user-select:text}
+.con .err{color:var(--t-err)}
+.con .hl{color:var(--t-acc)}
+.con .ok{color:var(--t-ok)}
+.op-con{flex:1;min-height:0;display:flex;border:1px solid #262626;border-radius:.25em;overflow:hidden}
+.op-con>.con{flex:1}
+.op-status{font-size:.85em;color:var(--t-dim);text-align:center;flex:none;min-height:1.3em}
+.op-res{font-weight:700;text-align:center;font-size:1.05em;flex:none}
+.op-res.ok{color:var(--t-ok)}
+.op-res.bad{color:var(--t-err)}
+.pbar{height:.5em;background:#2a2a2a;border-radius:.25em;overflow:hidden;flex:none}
+.pbar i{display:block;height:100%;width:0;background:var(--t-acc)}
+.pbar.ind i{width:35%;animation:ind 1.2s ease-in-out infinite}
+@keyframes ind{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}
+.tw-nav{display:flex;justify-content:space-around;align-items:center;background:#0e0e0e;border-top:1px solid #222;flex:none;height:3.3em}
+.tw-nav button{background:none;border:0;width:3.4em;height:100%;display:grid;place-items:center;color:#ddd}
+.tw-nav button span{width:1.5em;height:1.5em;display:block}
+.tw-nav button:active{color:var(--t-acc)}
+#conov{position:absolute;inset:0;background:#0a0a0a;display:flex;z-index:5}
+#conov[hidden]{display:none}
+#conov .con{flex:1}
+.inrow{display:flex;gap:.5em;align-items:stretch}
+.kbd,.term-in{flex:1;min-width:0;background:#0d0d0d;border:1px solid #444;border-radius:.25em;color:#fff;padding:.45em .55em;font-size:max(16px,1em);font-family:inherit;outline:none}
+.kbd:focus,.term-in:focus{border-color:var(--t-acc)}
+.err-line{color:var(--t-err);font-size:.85em;min-height:1.2em}
+.term-out{flex:1;min-height:0;border:1px solid #262626;border-radius:.25em}
+.term-row{display:flex;align-items:center;gap:.4em;flex:none}
+.term-pr{font-family:ui-monospace,Menlo,monospace;font-size:.75em;color:var(--t-acc);white-space:nowrap}
+.term-in{font-family:ui-monospace,Menlo,monospace}
+.rng{width:100%;accent-color:var(--t-acc)}
+.modal{position:absolute;inset:0;background:rgba(0,0,0,.65);display:grid;place-items:center;z-index:20}
+.mbox{width:86%;max-height:86%;overflow:auto;background:#202020;border:1px solid #3a3a3a;border-radius:.4em;padding:.9em;display:flex;flex-direction:column;gap:.6em}
+.mtitle{color:var(--t-acc);font-weight:600}
+.mbody{font-size:.9em;display:flex;flex-direction:column;gap:.2em}
+.mono{font-family:ui-monospace,Menlo,monospace;font-size:.85em}
+#ov{position:absolute;inset:0;z-index:30;display:none;background:#000}
+#blank{position:absolute;inset:0;z-index:40;display:none;background:#000}
+#dim{position:absolute;inset:0;z-index:50;background:#000;pointer-events:none;opacity:0}
+.scr-off{position:absolute;inset:0;background:#000}
+.logo-scr{position:absolute;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff}
+.logo-txt{font-size:2.1em;font-weight:300;letter-spacing:.05em}
+.lock{position:absolute;bottom:9%;width:1.8em;height:1.8em;color:#fff}
+.loopn{position:absolute;bottom:3.5%;font-size:.7em;color:#ff6b61}
+.splash{position:absolute;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.sp-t{font-size:2.5em;font-weight:700;letter-spacing:.01em;color:#fff}
+.sp-s{font-size:1.05em;color:#9a9a9a}
+.sp-v{color:var(--t-acc);margin-top:.4em;font-size:.9em}
+.sp-bar{width:50%;height:.25em;background:#222;margin-top:1.6em;overflow:hidden;border-radius:9px}
+.sp-bar i{display:block;height:100%;width:35%;background:var(--t-acc);animation:ind 1.1s ease-in-out infinite}
+.ba{position:absolute;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5em;color:#eee}
+.ba-dots{display:flex;gap:.6em}
+.ba-dots i{width:.8em;height:.8em;border-radius:50%;background:#e6e6e6;animation:bob 1.2s ease-in-out infinite}
+.ba-dots i:nth-child(2){animation-delay:.15s}.ba-dots i:nth-child(3){animation-delay:.3s}.ba-dots i:nth-child(4){animation-delay:.45s}
+@keyframes bob{0%,100%{transform:translateY(0);opacity:.45}50%{transform:translateY(-.9em);opacity:1}}
+.ba-word{font-size:1.35em;font-weight:300;letter-spacing:.14em}
+.ba-lin-mark{width:4.6em;height:4.6em;position:relative;animation:spin 1.6s linear infinite}
+.ba-lin-mark i{position:absolute;inset:0;border-radius:50%;border:.18em solid #2f2f2f}
+.ba-lin-mark b{position:absolute;top:-.26em;left:50%;width:.7em;height:.7em;margin-left:-.35em;border-radius:50%;background:#1aa59f}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ba-loop{color:#ff6b61;font-size:.75em}
+.and{position:absolute;inset:0;background:radial-gradient(120% 80% at 20% 10%,#2c5d8f 0,#173252 45%,#0b1626 100%);color:#fff;display:flex;flex-direction:column}
+.and.lin{background:radial-gradient(120% 80% at 80% 0%,#1f8a88 0,#11474f 45%,#081c22 100%)}
+.and-sb{display:flex;justify-content:space-between;font-size:.72em;padding:.45em .8em;opacity:.9}
+.and-lock,.and-setup{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 1em}
+.and-clock{font-size:4em;font-weight:200;line-height:1}
+.and-date{font-size:.95em;opacity:.85;margin-top:.4em}
+.and-big{font-size:2.4em;font-weight:300}
+.and-card{margin:.8em;background:rgba(0,0,0,.38);border-radius:.6em;padding:.8em;font-size:.82em;display:flex;flex-direction:column;gap:.25em}
+.and-os{font-weight:600;font-size:1.1em}
+.and-btns{display:flex;flex-direction:column;gap:.4em;margin-top:.5em}
+.abtn{font-family:ui-monospace,Menlo,monospace!important;font-size:.92em!important;padding:.55em .7em;border-radius:.4em;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);text-align:left}
+.abtn:active{background:rgba(255,255,255,.25)}
+.fbs{position:absolute;inset:0;background:#000;display:flex;flex-direction:column;font-family:"Courier New",ui-monospace,monospace;color:#fff;padding:6% 4% 4%}
+.fb-opt{font-size:2em!important;font-weight:700;background:none;border:0;text-align:center;padding:.2em;letter-spacing:.02em}
+.fb-mid{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;color:#777;font-size:.78em;padding:0 8%}
+.fb-info{font-size:.7em;line-height:1.4}
+.fb-info .r{color:#ff3b30}
+@media (prefers-reduced-motion:reduce){.inner *{animation-duration:3s!important}}
+</style>
+</head>
+<body>
+<div class="top"><h1>Simulador TWRP</h1><span>Nexus 5 (hammerhead) · TWRP 3.3.1-0</span></div>
+<div class="stage">
+  <div class="phone" id="phone">
+    <div class="spk"></div><div class="cam"></div><div class="led"></div>
+    <button class="sb vu" data-hw="volup" aria-label="Subir volumen"></button>
+    <button class="sb vd" data-hw="voldown" aria-label="Bajar volumen"></button>
+    <button class="sb pw" data-hw="power" aria-label="Botón de encendido"></button>
+    <div class="screen" id="screen">
+      <div class="inner" id="inner">
+        <div id="ui">
+          <div class="tw-head">
+            <div><div class="tw-name">Team Win Recovery Project</div><div class="tw-ver">3.3.1-0</div></div>
+            <div class="tw-r"><div class="tw-clock" id="clock">--:--</div><div class="tw-stat"><span id="cpu">CPU 36°C</span> &nbsp;<span id="bat">87%</span></div></div>
+          </div>
+          <div class="tw-mid">
+            <div class="tw-title" id="title"></div>
+            <div class="tw-page" id="page"></div>
+            <div id="conov" hidden></div>
+          </div>
+          <div class="tw-nav">
+            <button id="nav-back" aria-label="Atrás"><span data-ico="back"></span></button>
+            <button id="nav-home" aria-label="Inicio"><span data-ico="home"></span></button>
+            <button id="nav-con" aria-label="Consola"><span data-ico="console"></span></button>
+          </div>
+        </div>
+        <div id="ov"></div>
+        <div id="blank"></div>
+        <div id="dim"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="hw">
+  <button data-hw="volup">Vol +</button>
+  <button data-hw="voldown">Vol −</button>
+  <button data-hw="power">Power</button>
+  <button data-hw="combo">Power + Vol −</button>
+</div>
+<div class="tools"><button id="bare">Pantalla completa</button><button id="reset">Reiniciar simulación</button></div>
+<p class="notice" id="notice" aria-live="polite"></p>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s);
+const SERIAL='04f3a1c2e8b6d7f9', VER='3.3.1-0', MB=1048576, DATA_TOTAL=12865;
+const OSES={stock:{rom:'stock',name:'Android 6.0.1',android:'6.0.1',build:'M4B30Z'},lineage:{rom:'lineage',name:'LineageOS 14.1',android:'7.1.2',build:'NJH47F'}};
+const TZS=[['(UTC -10) Hawaii','Pacific/Honolulu'],['(UTC -8) Pacific Time','America/Los_Angeles'],['(UTC -7) Mountain Time','America/Denver'],['(UTC -6) Central Time','America/Chicago'],['(UTC -6) Mexico City','America/Mexico_City'],['(UTC -5) Eastern Time','America/New_York'],['(UTC -5) Bogota / Lima','America/Bogota'],['(UTC -4) Caracas','America/Caracas'],['(UTC -3) Buenos Aires','America/Argentina/Buenos_Aires'],['(UTC -3) Sao Paulo','America/Sao_Paulo'],['(UTC +0) London / Lisbon','Europe/London'],['(UTC +0) Canary Islands','Atlantic/Canary'],['(UTC +1) Madrid / Paris / Berlin','Europe/Madrid'],['(UTC +2) Athens / Helsinki','Europe/Athens'],['(UTC +3) Moscow','Europe/Moscow'],['(UTC +4) Dubai','Asia/Dubai'],['(UTC +5:30) India','Asia/Kolkata'],['(UTC +8) Beijing / Singapore','Asia/Shanghai'],['(UTC +9) Tokyo / Seoul','Asia/Tokyo'],['(UTC +10) Sydney','Australia/Sydney'],['(UTC +12) Auckland','Pacific/Auckland'],['UTC','UTC']];
+const svg=d=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const ICON={
+ install:svg('<path d="M12 3v11M7.5 9.5 12 14l4.5-4.5M4 17v3h16v-3"/>'),
+ wipe:svg('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/>'),
+ backup:svg('<path d="M3 4h18v4H3zM5 8v12h14V8M12 17v-6M9 13.5l3-3 3 3"/>'),
+ restore:svg('<path d="M3 4h18v4H3zM5 8v12h14V8M12 10.5v6M9 13.5l3 3 3-3"/>'),
+ mount:svg('<rect x="4" y="4" width="16" height="6" rx="1"/><rect x="4" y="14" width="16" height="6" rx="1"/><path d="M8 7h.01M8 17h.01"/>'),
+ settings:svg('<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>'),
+ advanced:svg('<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M7 9l3 3-3 3M12.5 15H17"/>'),
+ reboot:svg('<path d="M12 3v8M6.4 6.6a8 8 0 1 0 11.2 0"/>'),
+ back:svg('<path d="M15 5l-7 7 7 7"/>'), home:svg('<circle cx="12" cy="12" r="6.5"/>'), console:svg('<path d="M4 6h16M4 10h16M4 14h10M4 18h7"/>'),
+ folder:svg('<path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2h8.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/>'),
+ file:svg('<path d="M6 3h8l4 4v14H6zM14 3v4h4"/>'), up:svg('<path d="M12 19V6M6.5 11.5 12 6l5.5 5.5"/>'),
+ arrows:svg('<path d="M6 6l6 6-6 6M12 6l6 6-6 6"/>'),
+ unlock:svg('<rect x="5" y="11" width="14" height="10" rx="1.5"/><path d="M8 11V7.5a4 4 0 0 1 7.7-1.5"/>'),
+ log:svg('<path d="M6 3h8l4 4v14H6zM9 12h6M9 16h6"/>'),
+ fix:svg('<path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/>'),
+ sideload:svg('<rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M12 7v7M9.5 11.5 12 14l2.5-2.5"/>'),
+ phone:svg('<rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/>'),
+ recov:svg('<path d="M4 12a8 8 0 1 0 2.3-5.7M4 4v4h4"/>'),
+ bl:svg('<circle cx="12" cy="12" r="4"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>')
+};
+
+/* ---------- utilidades ---------- */
+function h(tag,a,...kids){const e=document.createElement(tag);
+ if(a)for(const k in a){const v=a[k];if(v==null||v===false)continue;
+  if(k==='class')e.className=v;else if(k.startsWith('on'))e.addEventListener(k.slice(2),v);else if(k==='html')e.innerHTML=v;else if(k==='style')e.style.cssText=v;else e.setAttribute(k,v===true?'':v);}
+ for(const c of kids.flat(9))if(c!=null&&c!==false)e.append(c.nodeType?c:document.createTextNode(String(c)));
+ return e;}
+const D=(c={})=>({t:'d',c}), F=(s,x)=>Object.assign({t:'f',s:Math.round(s)},x||{});
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const clone=o=>JSON.parse(JSON.stringify(o));
+function vib(ms){try{if(S&&S.settings.vibrate&&navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+function guessTz(){try{const z=Intl.DateTimeFormat().resolvedOptions().timeZone;if(TZS.some(t=>t[1]===z))return z;}catch(e){}return 'Europe/Madrid';}
+
+/* ---------- particiones y backups ---------- */
+const PARTS=[['boot','Boot'],['recovery','Recovery'],['system','System'],['sysimg','System Image'],['data','Data (excl. storage)'],['cache','Cache'],['efs','EFS']];
+const PNAME=Object.fromEntries(PARTS);
+function partMB(k,s){s=s||S;switch(k){case 'boot':case 'recovery':return 22;case 'system':return s.os?(s.os.rom==='lineage'?(s.gapps?812:604):871):0;case 'sysimg':return 1024;case 'data':return s.dataPresent?1683:2;case 'cache':return 14;case 'efs':return 3;}return 0;}
+function snapshot(){return {os:S.os?{...S.os}:null,gapps:S.gapps,magisk:S.magisk,bootKind:S.bootKind,recoveryKind:S.recoveryKind,dataPresent:S.dataPresent,dataRom:S.dataRom};}
+function mkBackup(parts,snap,opts,date){const c={},dig=!opts.skipDigest;
+ const add=(n,mb)=>{c[n]=F(mb*MB*(opts.compress?.62:1));if(dig)c[n+'.sha2']=F(80);};
+ for(const k of parts){const mb=partMB(k,snap);
+  if(k==='boot')add('boot.emmc.win',mb);else if(k==='recovery')add('recovery.emmc.win',mb);
+  else if(k==='system')add('system.ext4.win',Math.max(1,mb*.97));else if(k==='sysimg')add('system_image.emmc.win',mb);
+  else if(k==='data'){if(mb>1500){add('data.ext4.win000',1500);add('data.ext4.win001',mb-1500);}else add('data.ext4.win',Math.max(1,mb));}
+  else if(k==='cache')add('cache.ext4.win',mb);else if(k==='efs'){add('efs1.emmc.win',1.5);add('efs2.emmc.win',1.5);}}
+ c['recovery.log']=F(48e3);const n=D(c);n.m={parts,snap,date,compress:!!opts.compress};return n;}
+function defaultSd(){
+ const snap={os:{...OSES.stock},gapps:true,magisk:false,bootKind:'stock',recoveryKind:'twrp',dataPresent:true,dataRom:'stock'};
+ return D({Alarms:D(),Android:D({data:D({'com.google.android.gms':D()}),obb:D()}),
+  DCIM:D({Camera:D({'IMG_20160412_183355.jpg':F(3.1*MB),'IMG_20160502_101247.jpg':F(2.8*MB),'VID_20160611_200104.mp4':F(48*MB)})}),
+  Download:D({'lineage-14.1-20190115-UNOFFICIAL-hammerhead.zip':F(322*MB),'open_gapps-arm-7.1-pico-20190115.zip':F(98*MB),'Magisk-v20.4.zip':F(5.9*MB),'twrp-3.3.1-0-hammerhead.img':F(14.4*MB),'boot-m4b30z.img':F(9.2*MB)}),
+  Movies:D(),Music:D(),Notifications:D(),Pictures:D({Screenshots:D({'Screenshot_20160704-112233.png':F(.4*MB)})}),Podcasts:D(),Ringtones:D(),
+  TWRP:D({BACKUPS:D({[SERIAL]:D({'2019-01-10--21-14-07_M4B30Z':mkBackup(['boot','system','data','cache','efs'],snap,{},Date.UTC(2019,0,10,20,14,7))})})})});}
+function defaults(){return {os:{...OSES.stock},gapps:true,magisk:false,bootKind:'stock',recoveryKind:'twrp',dataPresent:true,dataRom:'stock',
+ mounted:{system:false,data:true,cache:true,usbotg:false},roSystem:false,mtp:true,battery:87,
+ settings:{verify:false,rmrf:false,skipDigest:false,h24:true,tz:guessTz(),bright:85,timeoutOn:true,timeout:60,vibrate:true},fs:{sdcard:defaultSd()}};}
+
+const KEY='twrp-sim-hammerhead-v1';
+let S=null;
+try{const raw=localStorage.getItem(KEY);S=raw?JSON.parse(raw):null;}catch(e){S=null;}
+if(!S||!S.fs||!S.fs.sdcard)S=defaults();else{const d=defaults();S={...d,...S,settings:{...d.settings,...S.settings}};}
+let saveT;function save(){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}},250);}
+
+/* ---------- sistema de ficheros virtual ---------- */
+function resolve(base,p){const parts=(p.startsWith('/')?p:base+'/'+p).split('/'),out=[];for(const x of parts){if(!x||x==='.')continue;if(x==='..')out.pop();else out.push(x);}return '/'+out.join('/');}
+const parentOf=p=>resolve(p,'..'), baseOf=p=>p.split('/').filter(Boolean).pop()||'/';
+function dirSize(n){if(n.t==='f')return n.s;let s=0;for(const k in n.c)s+=dirSize(n.c[k]);return s;}
+function usedMB(){return Math.round(dirSize(S.fs.sdcard)/MB)+(S.dataPresent?1683:2);}
+function freeMB(){return Math.max(0,DATA_TOTAL-usedMB());}
+const storageLabel=()=>`Internal Storage (${freeMB()}MB)`;
+function apps(list){const o={};for(const a of list)o[a]=D({[a+'.apk']:F((8+a.length*3)*MB)});return o;}
+function sysTree(){const lin=S.os.rom==='lineage';
+ const app=lin?['Jelly','Eleven','Gallery2','Snap','ExactCalculator','LatinIME']:['Chrome','Maps','Photos','YouTube','CalculatorGoogle','GoogleCamera','PrebuiltGmail'];
+ const priv=lin?['LineageParts','Trebuchet','Settings','SystemUI']:['Settings','SystemUI','SetupWizard'];
+ if(S.gapps)priv.push('GmsCore','Phonesky','GoogleServicesFramework');
+ return D({app:D(apps(app)),'priv-app':D(apps(priv)),bin:D({sh:F(.3*MB),toolbox:F(.2*MB),app_process:F(.02*MB)}),etc:D({hosts:F(56)}),fonts:D(),framework:D({'framework-res.apk':F(18*MB),'framework.jar':F(5*MB)}),lib:D(),xbin:D(),'build.prop':F(3400,{gen:'buildprop'})});}
+let memo={};
+function dataTree(){const k=S.dataPresent+':'+S.dataRom;
+ if(memo.dk!==k){memo.dk=k;memo.data=S.dataPresent?{app:D({'com.whatsapp-1':D({'base.apk':F(34*MB)}),'org.telegram.messenger-2':D({'base.apk':F(21*MB)})}),data:D({'com.android.providers.settings':D(),'com.google.android.gms':D(),'com.whatsapp':D()}),'dalvik-cache':D(),misc:D(),system:D({'locksettings.db':F(20e3)})}:{misc:D()};}
+ return D({...memo.data,media:D({'0':S.fs.sdcard})});}
+const BYNAME={boot:F(22*MB),cache:F(690*MB),misc:F(1*MB),modem:F(64*MB),modemst1:F(1.5*MB),modemst2:F(1.5*MB),persist:F(16*MB),recovery:F(22*MB),system:F(1024*MB),userdata:F(DATA_TOTAL*MB)};
+function vroot(){return D({
+ cache:S.mounted.cache?D({'lost+found':D(),recovery:D({last_log:F(52e3),last_install:F(64)})}):D(),
+ data:S.mounted.data?dataTree():D(),
+ dev:D({block:D({platform:D({'msm_sdcc.1':D({'by-name':D(BYNAME)})})})}),
+ etc:D({'recovery.fstab':F(1100,{gen:'fstab'}),'twrp.fstab':F(900,{gen:'fstab'})}),
+ proc:D({version:F(160,{gen:'procver'}),cpuinfo:F(900,{gen:'cpuinfo'}),mounts:F(800,{gen:'mounts'})}),
+ sbin:D({recovery:F(1.9*MB),busybox:F(1.1*MB),adbd:F(.3*MB)}),
+ sdcard:S.mounted.data?S.fs.sdcard:D(),sys:D(),
+ system:S.mounted.system&&S.os?sysTree():D(),
+ tmp:D({'recovery.log':F(logs.length*60,{gen:'log'})}),'usb-otg':D()});}
+function vget(p){let n=vroot();for(const x of p.split('/').filter(Boolean)){if(!n||n.t!=='d')return null;n=n.c[x];}return n||null;}
+const vparent=p=>[vget(parentOf(p)),baseOf(p)];
+function kindOf(n){n=n.toLowerCase();if(n.endsWith('.img'))return n.includes('twrp')?'twrpimg':'bootimg';if(n.includes('lineage'))return 'rom';if(n.includes('gapps'))return 'gapps';if(n.includes('magisk'))return 'magisk';return 'zip';}
+const fmtSize=b=>b>=MB?(b/MB).toFixed(1)+' MB':b>=1024?(b/1024).toFixed(1)+' KB':b+' B';
+
+/* ---------- log y consola ---------- */
+let logs=[];const consoles=new Set();
+function autoCls(t){if(/^E:|error|failed|^!|aborted/i.test(t))return 'err';if(/^\[.*\]$/.test(t)||/^-- /.test(t))return 'hl';if(/Successful|complete!|^- Done/i.test(t))return 'ok';return null;}
+function log(t,cls){cls=cls||autoCls(t);logs.push([t,cls]);if(logs.length>800)logs.shift();
+ for(const c of consoles){if(!c.isConnected){consoles.delete(c);continue;}c.append(h('div',{class:cls},t));c.scrollTop=c.scrollHeight;}}
+function consoleEl(){const c=h('div',{class:'con'},logs.map(([t,cl])=>h('div',{class:cl},t)));consoles.add(c);requestAnimationFrame(()=>{c.scrollTop=c.scrollHeight;});return c;}
+const logsText=()=>logs.map(l=>l[0]).join('\n')+'\n';
+let conOpen=false;
+function toggleCon(v){conOpen=v===undefined?!conOpen:v;$conov.hidden=!conOpen;if(conOpen)$conov.replaceChildren(consoleEl());else $conov.replaceChildren();}
+
+/* ---------- componentes ---------- */
+function btn(label,fn,dis){return h('button',{class:'btn',onclick:fn,disabled:!!dis},label);}
+function check(label,on,fn,dis){return h('button',{class:'chk'+(on?' on':''),role:'checkbox','aria-checked':String(!!on),disabled:!!dis,onclick:()=>{fn(!on);save();render();}},h('span',{class:'box'}),h('span',{class:'lbl'},label));}
+function radio(label,on,fn){return h('button',{class:'chk radio'+(on?' on':''),role:'radio','aria-checked':String(!!on),onclick:()=>{fn();save();render();}},h('span',{class:'box'}),h('span',{class:'lbl'},label));}
+const kv=(a,b)=>h('div',{class:'kv'},h('span',{class:'dim'},a),b);
+function mbtn(label,icon,fn){return h('button',{class:'mbtn',onclick:fn},h('span',{class:'ico',html:icon}),h('span',{},label));}
+function slider(text,fn){
+ const fill=h('div',{class:'sw-fill'}),lab=h('div',{class:'sw-label'},text),
+  thumb=h('div',{class:'sw-thumb',html:ICON.arrows,tabindex:'0',role:'button','aria-label':text});
+ const el=h('div',{class:'sw'},fill,lab,thumb);let x0=null,x=0,max=1,done=false;
+ const set=v=>{x=v;thumb.style.transform=`translateX(${v}px)`;fill.style.width=`calc(${v}px + 2.7em)`;lab.style.opacity=String(Math.max(0,1-v/max*1.3));};
+ const fire=()=>{done=true;vib(40);setTimeout(()=>{fn();setTimeout(()=>{if(el.isConnected){done=false;thumb.style.transition=fill.style.transition='all .25s';set(0);}},350);},120);};
+ thumb.addEventListener('pointerdown',e=>{if(done||busy)return;max=el.clientWidth-thumb.offsetWidth-thumb.offsetLeft*2;x0=e.clientX-x;try{thumb.setPointerCapture(e.pointerId);}catch(_){}thumb.style.transition=fill.style.transition='none';});
+ thumb.addEventListener('pointermove',e=>{if(x0==null)return;set(Math.max(0,Math.min(max,e.clientX-x0)));});
+ const end=()=>{if(x0==null)return;x0=null;if(x>=max*.86){set(max);fire();}else{thumb.style.transition=fill.style.transition='all .2s';set(0);}};
+ thumb.addEventListener('pointerup',end);thumb.addEventListener('pointercancel',end);
+ thumb.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&!done&&!busy){e.preventDefault();max=el.clientWidth-thumb.offsetWidth-thumb.offsetLeft*2;set(max);fire();}});
+ return el;}
+function modal(title,body,buttons){const m=h('div',{class:'modal'},h('div',{class:'mbox'},h('div',{class:'mtitle'},title),h('div',{class:'mbody'},body),h('div',{class:'row'},buttons.map(b=>btn(b.label,()=>{m.remove();if(b.fn)b.fn();})))));$inner.append(m);}
+const alertBox=(msg,title)=>modal(title||'Error',msg,[{label:'OK'}]);
+function fbItem(kind,label,fn){return h('button',{class:'fb-item '+kind,onclick:fn},h('span',{class:'fi',html:ICON[kind==='up'?'up':kind==='dir'?'folder':'file']}),h('span',{class:'fn'},label));}
+let curDir={install:'/sdcard',fm:'/'};
+function browser(key,filter,onFile,dirsOnly){
+ let cwd=curDir[key]||'/sdcard',node=vget(cwd);
+ if(!node||node.t!=='d'){cwd='/sdcard';curDir[key]=cwd;node=vget(cwd)||D();}
+ const cd=p=>{curDir[key]=p;render(true);},items=[];
+ if(cwd!=='/')items.push(fbItem('up','(Up A Level)',()=>cd(parentOf(cwd))));
+ const names=Object.keys(node.c).sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));
+ for(const n of names)if(node.c[n].t==='d')items.push(fbItem('dir',n,()=>cd(resolve(cwd,n))));
+ if(!dirsOnly)for(const n of names){const f=node.c[n];if(f.t==='f'&&(!filter||filter(n)))items.push(fbItem('file',n,()=>onFile(resolve(cwd,n),f)));}
+ return h('div',{class:'fb'},h('div',{class:'fb-path'},cwd),h('div',{class:'fb-list'},items));}
+
+/* ---------- navegación ---------- */
+let stack=[{name:'main',params:{}}],busy=false,lastEntry=null,opGen=0,zipQ=[];
+const T={installImg:false,rebootAfter:false,awSel:{},bkSel:{boot:true,system:true,data:true},bkName:null,compress:false,rsSel:null,slDalvik:false,slCache:false,imgPart:'boot'};
+const P={};
+function go(name,params){if(busy)return;stack.push({name,params:params||{}});render(true);}
+function back(){if(busy)return;if(conOpen){toggleCon(false);return;}if(stack.length<=1)return;const top=stack.at(-1);
+ if(top.onBack&&top.onBack()===false)return;stack.pop();const ex=(top.params&&top.params.popExtra)||0;for(let i=0;i<ex&&stack.length>1;i++)stack.pop();render(true);}
+function home(){if(busy)return;toggleCon(false);stack=[stack[0]];zipQ=[];render(true);}
+function render(reset){const top=stack.at(-1);const keep=!reset&&top===lastEntry?$page.scrollTop:0;top.onBack=null;
+ const r=P[top.name](top.params||{},top);$title.textContent=r.title||'';$title.style.display=r.title?'':'none';
+ $page.className='tw-page'+(r.cls?' '+r.cls:'');$page.replaceChildren(...[].concat(r.body).filter(Boolean));$page.scrollTop=keep;lastEntry=top;}
+
+/* ---------- operaciones (pantalla de progreso) ---------- */
+function setProg(p,v){p.prog=v;if(p.bar)p.bar.style.width=(v*100)+'%';}
+function tween(p,a,b,ms){return new Promise(res=>{const t0=performance.now();const f=now=>{const k=Math.min(1,(now-t0)/ms);setProg(p,a+(b-a)*k);if(k<1)requestAnimationFrame(f);else res();};requestAnimationFrame(f);});}
+async function runOp(o){const gen=opGen,p={...o,prog:0,done:false,ok:null},entry={name:'op',params:p};
+ busy=true;stack.push(entry);render(true);
+ const total=o.steps.reduce((a,s)=>a+(s.ms==null?150:s.ms),0)||1;let el=0,ok=true;
+ for(const s of o.steps){
+  if(s.status){p.status=s.status;if(p.statEl)p.statEl.textContent=s.status;}
+  if(s.log)[].concat(s.log).forEach(l=>log(l,s.cls));
+  const ms=s.ms==null?150:s.ms;await tween(p,el/total,(el+ms)/total,ms);el+=ms;
+  if(gen!==opGen)return;
+  if(s.act)s.act();
+  if(s.fail){ok=false;break;}}
+ if(ok)setProg(p,1);p.done=true;p.ok=ok;busy=false;save();
+ if(stack.at(-1)===entry)render();
+ if(ok&&o.then)o.then();}
+P.op=(p)=>{const bar=h('i',{style:`width:${(p.prog||0)*100}%`});p.bar=bar;const stat=h('div',{class:'op-status'},p.status||'');p.statEl=stat;
+ return {title:p.title,cls:'fill',body:[h('div',{class:'op-con'},consoleEl()),
+  p.done?h('div',{class:'op-res '+(p.ok?'ok':'bad')},p.ok?'Successful':'Failed'):stat,
+  h('div',{class:'pbar'},bar),p.done?h('div',{class:'row'},p.after?p.after(p.ok):[]):null]};};
+const std=()=>[btn('Back',()=>back()),btn('Reboot System',()=>doReboot('system'))];
+const backOnly=()=>[btn('Back',()=>back())];
+const dur=mb=>Math.min(4800,500+mb*2.6);
+
+/* ---------- menú principal ---------- */
+const MENU=[['install','Install'],['wipe','Wipe'],['backup','Backup'],['restore','Restore'],['mount','Mount'],['settings','Settings'],['advanced','Advanced'],['reboot','Reboot']];
+P.main=()=>({cls:'main',body:h('div',{class:'grid'},MENU.map(([k,l])=>mbtn(l,ICON[k],()=>go(k))))});
+
+/* ---------- Install ---------- */
+function selectStorage(){let pick='int';const opts=h('div');
+ const rad=(l,v,dis)=>h('button',{class:'chk radio'+(pick===v?' on':''),disabled:!!dis,onclick:()=>{pick=v;draw();}},h('span',{class:'box'}),h('span',{class:'lbl'},l));
+ const draw=()=>opts.replaceChildren(rad(storageLabel(),'int'),rad('Micro SDcard (0MB)','sd',true),rad('USB-OTG (0MB)','otg'));draw();
+ modal('Select Storage',opts,[{label:'Cancel'},{label:'OK',fn:()=>{if(pick==='otg'){log("E:Failed to mount '/usb-otg' (No such device)");alertBox("Failed to mount '/usb-otg' (No such device)");}}}]);}
+P.install=()=>{const img=T.installImg;
+ return {title:img?'Install Image':'Install Zip',body:[
+  h('div',{class:'row'},h('div',{class:'store'},'Storage: '+storageLabel()),btn('Select Storage',selectStorage)),
+  h('div',{class:'row'},btn(img?'Install Zip':'Install Image',()=>{T.installImg=!img;render();})),
+  browser('install',n=>img?/\.img$/i.test(n):/\.zip$/i.test(n),path=>{if(img)go('imgpart',{path});else{if(!zipQ.includes(path))zipQ.push(path);go('zipq');}})]};};
+P.zipq=(p,top)=>{top.onBack=()=>{zipQ=[];};
+ return {title:'Install Zip',body:[
+  h('p',{class:'warn'},'This operation may install incompatible software and render your device unusable.'),
+  kv('Folder: ',parentOf(zipQ[0]||'/sdcard')),
+  ...zipQ.map((z,i)=>kv(`File ${i+1}: `,baseOf(z))),
+  check('Zip signature verification',S.settings.verify,v=>{S.settings.verify=v;}),
+  check('Reboot after installation is complete',T.rebootAfter,v=>{T.rebootAfter=v;}),
+  h('div',{class:'row'},btn('Add more Zips',()=>{stack.pop();render(true);},zipQ.length>=10),btn('Clear Zip Queue',()=>{zipQ=[];stack.pop();render(true);})),
+  slider('Swipe to confirm Flash',flashZips)]};};
+function failLines(path,lines){return {log:[...lines,`Error installing zip file '${path}'`,'Updating partition details...','...done'],ms:300,fail:true};}
+function flashSteps(items){const st=[];let simOs=S.os,simMagisk=S.magisk;
+ for(const it of items){const {path,name}=it,kind=kindOf(name);
+  st.push({log:`Installing zip file '${path}'`,ms:350,status:'Installing '+name});
+  if(S.settings.verify&&!it.sideload){st.push({log:'Verifying zip signature...',ms:900});
+   if(kind!=='gapps'){st.push(failLines(path,['Zip signature verification failed!']));return st;}
+   st.push({log:'Zip signature verified successfully.',ms:200});}
+  st.push({log:'Checking for Digest file...',ms:200},{log:'Skipping Digest check: no Digest file found',ms:250});
+  if(kind==='rom'){
+   st.push({log:'Target: google/hammerhead/hammerhead:6.0.1/M4B30Z/3437181:user/release-keys',ms:400},
+    {log:'Patching system image unconditionally...',ms:5200,status:'Patching system image...'},
+    {log:'script succeeded: result was [1.000000]',ms:300,act:()=>{S.os={...OSES.lineage};S.gapps=false;S.bootKind='lineage';S.magisk=false;}});
+   simOs=OSES.lineage;simMagisk=false;
+  }else if(kind==='gapps'){
+   st.push({log:['##############################','Open GApps pico 7.1 - 20190115','##############################'],ms:300},{log:'- Mounting /system',ms:400});
+   if(!simOs){st.push(failLines(path,['! Unable to find a supported ROM: /system/build.prop is missing','! Installation aborted','Updater process ended with ERROR: 1']));return st;}
+   if(simOs.android!=='7.1.2'){st.push(failLines(path,['! Incompatible Android ROM detected','  This GApps package is for Android 7.1.x only','  Your ROM is Android '+simOs.android,'! Installation aborted','Updater process ended with ERROR: 1']));return st;}
+   st.push({log:'- Gathering device & ROM information',ms:500},{log:'- Performing system space calculations',ms:700},{log:'- Removing existing/obsolete Apps',ms:500},
+    {log:'- Installing core GApps',ms:1400,status:'Installing core GApps...'},{log:'- Installing Google Play Services',ms:1200},{log:'- Miscellaneous tasks',ms:400},{log:'- Unmounting /system',ms:200},
+    {log:'- Installation complete!',ms:200,act:()=>{S.gapps=true;}});
+  }else if(kind==='magisk'){
+   st.push({log:['******************************','  Magisk v20.4 Installer','******************************'],ms:300},
+    {log:'- Mounting /system, /vendor',ms:400},{log:'- Target image: /dev/block/platform/msm_sdcc.1/by-name/boot',ms:300},{log:'- Device platform: arm',ms:200},
+    {log:'- Constructing environment',ms:500},{log:'- Unpacking boot image',ms:500},{log:'- Checking ramdisk status',ms:300},
+    {log:simMagisk?'- Magisk patched boot image detected':'- Stock boot image detected',ms:300},{log:'- Patching ramdisk',ms:600},
+    {log:'- Repacking boot image',ms:500},{log:'- Flashing new boot image',ms:500},{log:'- Unmounting partitions',ms:200},{log:'- Done',ms:200,act:()=>{S.magisk=true;}});
+   simMagisk=true;
+  }else st.push({log:'Installing update...',ms:1500},{log:'script succeeded: result was [1.000000]',ms:300});
+ }
+ st.push({log:['Updating partition details...','...done'],ms:500});return st;}
+const flashAfter=ok=>ok?[btn('Wipe cache/dalvik',()=>{const pe=stack.at(-1).params.popExtra||0;stack.pop();doWipe(['cache','dalvik'],'Wipe Cache/Dalvik',pe);}),btn('Reboot System',()=>doReboot('system'))]:std();
+function flashZips(){const items=zipQ.map(p=>({path:p,name:baseOf(p)}));zipQ=[];
+ runOp({title:'Install Zip',status:'Installing...',popExtra:1,steps:flashSteps(items),after:flashAfter,
+  then:()=>{if(T.rebootAfter)setTimeout(()=>{if(mode==='recovery'&&!busy)doReboot('system');},1500);}});}
+P.imgpart=(p)=>({title:'Install Image',body:[kv('File: ',p.path),h('p',{class:'info'},'Select Partition to Flash Image:'),
+ radio('Boot',T.imgPart==='boot',()=>{T.imgPart='boot';}),radio('Recovery',T.imgPart==='recovery',()=>{T.imgPart='recovery';}),
+ slider('Swipe to confirm Flash',()=>flashImage(p.path))]});
+function flashImage(path){const isTwrp=kindOf(baseOf(path))==='twrpimg',part=T.imgPart,f=vget(path);
+ runOp({title:'Install Image',status:'Flashing image...',popExtra:1,after:std,steps:[{log:'[IMAGE FLASH STARTED]',ms:300},{log:`Image to flash: '${path}'`,ms:300},
+  {log:'Calculating restore details...',ms:500},{ms:Math.min(2500,500+(f?f.s/MB:10)*90)},
+  {log:'[IMAGE FLASH COMPLETED]',ms:100,act:()=>{if(part==='boot'){S.bootKind=isTwrp?'twrp':'stock';S.magisk=false;}else S.recoveryKind=isTwrp?'twrp':'stock';}}]});}
+
+/* ---------- Wipe ---------- */
+function wipeSteps(parts){const st=[];
+ for(const p of parts){
+  if(p==='dalvik')st.push({log:'Wiping Dalvik Cache Directories...',ms:500,status:'Wiping Dalvik...'},{log:['Cleaned: /data/dalvik-cache...','Cleaned: /cache/dalvik-cache...','-- Dalvik Cache Directories Wipe Complete!'],ms:500});
+  if(p==='system')st.push({log:S.settings.rmrf?'Wiping System using rm -rf...':'Formatting System using make_ext4fs...',ms:1400,status:'Wiping System...',act:()=>{S.os=null;S.gapps=false;S.mounted.system=false;}});
+  if(p==='data')st.push({log:'Wiping data without wiping /data/media ...',ms:1500,status:'Wiping Data...'},{log:'Done.',ms:150,act:()=>{S.dataPresent=false;S.dataRom=null;}});
+  if(p==='internal')st.push({log:'Wiping internal storage -- /data/media...',ms:1300,status:'Wiping Internal Storage...',act:()=>{S.fs.sdcard=D();curDir={fm:'/'};}});
+  if(p==='cache')st.push({log:S.settings.rmrf?'Wiping Cache using rm -rf...':'Formatting Cache using make_ext4fs...',ms:700,status:'Wiping Cache...'});
+  if(p==='usbotg'){st.push({log:["E:Failed to mount '/usb-otg' (No such device)","E:Unable to wipe '/usb-otg'"],ms:300,fail:true});break;}}
+ return st;}
+function doWipe(parts,title,popExtra){const st=wipeSteps(parts);if(!st.some(s=>s.fail))st.push({log:['Updating partition details...','...done'],ms:400});
+ runOp({title,status:'Wiping...',steps:st,popExtra:popExtra||0,after:std});}
+P.wipe=()=>({title:'Wipe',body:[h('p',{class:'info'},'Wipes Data, Cache, and Dalvik'),h('p',{class:'info dim'},'(not including internal storage)'),
+ h('p',{class:'info dim'},'Most of the time this is the only wipe that you need.'),
+ h('div',{class:'row'},btn('Advanced Wipe',()=>go('awipe')),btn('Format Data',()=>go('fdata'))),
+ slider('Swipe to Factory Reset',()=>doWipe(['data','cache','dalvik'],'Factory Reset'))]});
+const AW=[['dalvik','Dalvik / ART Cache'],['system','System'],['data','Data'],['internal','Internal Storage'],['cache','Cache'],['usbotg','USB OTG']];
+P.awipe=()=>({title:'Advanced Wipe',body:[h('p',{class:'info'},'Select Partitions to Wipe:'),...AW.map(([k,l])=>check(l,!!T.awSel[k],v=>{T.awSel[k]=v;})),
+ h('div',{class:'row'},btn('Repair or Change File System',()=>{const s=AW.filter(([k])=>T.awSel[k]);if(s.length!==1)return alertBox('Please select only one partition.');
+  if(s[0][0]==='dalvik'||s[0][0]==='usbotg')return alertBox('Invalid partition selection.');go('fsinfo',{k:s[0][0]});})),
+ slider('Swipe to Wipe',()=>{const parts=AW.map(a=>a[0]).filter(k=>T.awSel[k]);if(!parts.length)return alertBox('No partitions selected for wipe.');T.awSel={};doWipe(parts,'Advanced Wipe');})]});
+const FSI={system:['/system','mmcblk0p25',1007,()=>partMB('system')],data:['/data','mmcblk0p28',DATA_TOTAL,()=>usedMB()],internal:['/data','mmcblk0p28',DATA_TOTAL,()=>usedMB()],cache:['/cache','mmcblk0p27',677,()=>14]};
+P.fsinfo=({k})=>{const [mp,dev,size,used]=FSI[k],u=used(),nm=k==='internal'?'Data':(PNAME[k]||k);
+ return {title:'Partition Options: '+nm,body:[kv('Mount point: ',mp),kv('File system: ','ext4'),kv('Present: ','Yes'),kv('Removable: ','No'),kv('Size: ',size+'MB'),kv('Used: ',u+'MB'),kv('Free: ',(size-u)+'MB'),kv('Backup Size: ',u+'MB'),
+  h('div',{class:'row'},btn('Repair File System',()=>runOp({title:'Repair File System',status:'Repairing...',after:backOnly,steps:[{log:`Repairing ${nm} using e2fsck...`,ms:1800},{log:`/dev/block/${dev}: clean, 4321/803552 files, 512018/3293184 blocks`,ms:200},{log:['Updating partition details...','...done'],ms:300}]})),
+   btn('Resize File System',()=>runOp({title:'Resize File System',status:'Resizing...',after:backOnly,steps:[{log:`Resizing ${nm} using resize2fs...`,ms:1200},{log:'resize2fs 1.43.3 (04-Sep-2016)',ms:200},{log:'The filesystem is already at its maximum size. Nothing to do!',ms:200},{log:['Updating partition details...','...done'],ms:300}]})))]};};
+P.fdata=()=>{const inp=h('input',{class:'kbd',autocapitalize:'off',autocomplete:'off',autocorrect:'off',spellcheck:'false',enterkeyhint:'go','aria-label':'yes'}),err=h('div',{class:'err-line'});
+ const ok=()=>{if(inp.value.trim().toLowerCase()==='yes'){inp.blur();formatData();}else err.textContent='Type yes to continue.';};
+ inp.addEventListener('keydown',e=>{if(e.key==='Enter')ok();});
+ return {title:'Format Data',body:[h('p',{class:'info'},'Format Data will wipe all of your apps, backups, pictures, videos, media, and removes encryption on internal storage.'),
+  h('p',{class:'warn'},'This cannot be undone. Press back to cancel.'),h('p',{class:'info dim'},'Type yes to continue.'),h('div',{class:'inrow'},inp,btn('Go',ok)),err]};};
+function formatData(){runOp({title:'Format Data',status:'Formatting...',popExtra:1,after:std,steps:[{log:'Formatting Data using make_ext4fs...',ms:2200},
+ {log:'Done.',ms:150,act:()=>{S.dataPresent=false;S.dataRom=null;S.fs.sdcard=D();curDir={fm:'/'};}},
+ {log:'You may need to reboot recovery to be able to use /data again.',cls:'hl',ms:200},{log:['Updating partition details...','...done'],ms:400}]});}
+
+/* ---------- Backup / Restore ---------- */
+const BKP='/sdcard/TWRP/BACKUPS/'+SERIAL;
+function bkDir(){const n=vget(BKP);return n&&n.t==='d'?n:null;}
+function ensureBkDir(){let n=S.fs.sdcard;for(const x of ['TWRP','BACKUPS',SERIAL]){if(!n.c[x]||n.c[x].t!=='d')n.c[x]=D();n=n.c[x];}return n;}
+function tzParts(d){try{const o={};new Intl.DateTimeFormat('en-CA',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23',timeZone:S.settings.tz}).formatToParts(d).forEach(p=>o[p.type]=p.value);return o;}
+ catch(e){const p=n=>String(n).padStart(2,'0');return {year:d.getFullYear(),month:p(d.getMonth()+1),day:p(d.getDate()),hour:p(d.getHours()),minute:p(d.getMinutes()),second:p(d.getSeconds())};}}
+function autoName(){const o=tzParts(new Date());return `${o.year}-${o.month}-${o.day}--${o.hour}-${o.minute}-${o.second}_${S.os?S.os.build:'noname'}`;}
+function fmtDate(ts){if(!ts)return 'unknown';try{return new Intl.DateTimeFormat('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23',timeZone:S.settings.tz}).format(new Date(ts));}catch(e){return new Date(ts).toString();}}
+const nameOk=(v,d)=>!v?'Name cannot be empty.':!/^[\w.+\-]+$/.test(v)?'Use only letters, numbers, . _ + -':(d&&d.c[v])?'A backup with this name already exists.':null;
+P.backup=()=>{const sel=T.bkSel,total=PARTS.reduce((a,[k])=>a+(sel[k]?partMB(k):0),0);
+ return {title:'Backup',body:[
+  h('button',{class:'namebtn',onclick:()=>go('input',{title:'Backup Name',prompt:'Set backup name:',value:T.bkName||autoName(),ok:v=>{const e=nameOk(v,bkDir());if(e)return e;T.bkName=v;back();}})},h('span',{class:'dim'},'Backup Name: '),T.bkName||'Auto Generate'),
+  h('p',{class:'info'},'Select Partitions to Back Up:'),...PARTS.map(([k,l])=>check(`${l} (${partMB(k)}MB)`,!!sel[k],v=>{sel[k]=v;})),
+  check('Enable compression',T.compress,v=>{T.compress=v;}),check('Skip Digest generation during backup',S.settings.skipDigest,v=>{S.settings.skipDigest=v;}),
+  h('div',{class:'kv dim'},`Backup size: ${Math.round(total*(T.compress?.62:1))}MB. Free: ${freeMB()}MB`),slider('Swipe to Backup',doBackup)]};};
+function doBackup(){const sel=PARTS.map(p=>p[0]).filter(k=>T.bkSel[k]);if(!sel.length)return alertBox('No partitions selected for backup.');
+ if(!S.mounted.data)return alertBox('Unable to mount storage (/data is not mounted).');
+ const name=T.bkName||autoName();const d=bkDir();if(d&&d.c[name])return alertBox('A backup with this name already exists.');
+ const need=sel.reduce((a,k)=>a+partMB(k),0)*(T.compress?.62:1),snap=snapshot(),opts={compress:T.compress,skipDigest:S.settings.skipDigest};
+ const steps=[{log:`Backup Folder: /data/media/0/TWRP/BACKUPS/${SERIAL}/${name}`,ms:300,status:'Backing up...'}];
+ if(need>freeMB()){steps.push({log:['Not enough free space on storage.','E:Unable to create backup.'],ms:300,fail:true});return runOp({title:'Backup',steps,after:std});}
+ for(const k of sel)steps.push({log:`Backing up ${PNAME[k]}...`,ms:dur(partMB(k)),status:'Backing up '+PNAME[k]});
+ if(!opts.skipDigest)steps.push({log:'Generating Digest...',ms:900,status:'Generating Digest...'});
+ steps.push({log:['Updating partition details...','...done'],ms:400,act:()=>{ensureBkDir().c[name]=mkBackup(sel,snap,opts,Date.now());T.bkName=null;}},
+  {log:`[BACKUP COMPLETED IN ${Math.round(need/22)+3} SECONDS]`,ms:100});
+ runOp({title:'Backup',steps,after:std});}
+P.restore=()=>{const d=bkDir(),names=d?Object.keys(d.c).filter(k=>d.c[k].t==='d').sort().reverse():[];
+ return {title:'Restore',body:[h('div',{class:'store'},'Storage: '+storageLabel()),h('p',{class:'info'},'Select Package to Restore:'),h('div',{class:'fb-path'},BKP),
+  names.length?h('div',{class:'fb-list'},names.map(n=>fbItem('dir',n,()=>{T.rsSel=null;go('rst',{name:n});}))):h('p',{class:'info dim'},'No backups found in this folder.')]};};
+function guessMeta(n){const parts=[];const has=p=>Object.keys(n.c).some(k=>k.startsWith(p));
+ [['boot','boot.'],['recovery','recovery.emmc'],['system','system.ext4'],['sysimg','system_image'],['data','data.'],['cache','cache.'],['efs','efs1']].forEach(([k,p])=>{if(has(p))parts.push(k);});
+ return {parts,snap:null,date:0};}
+P.rst=(p)=>{const d=bkDir(),n=d&&d.c[p.name];if(!n)return {title:'Restore',body:[h('p',{class:'info'},'Backup not found.')]};
+ const m=n.m||guessMeta(n);if(!T.rsSel){T.rsSel={};m.parts.forEach(k=>{T.rsSel[k]=true;});}
+ return {title:'Restore',body:[kv('Package to Restore: ',p.name),kv('Package Date: ',fmtDate(m.date)),m.snap&&m.snap.os?kv('System: ',m.snap.os.name+' ('+m.snap.os.build+')'):null,
+  h('p',{class:'info'},'Select Partitions to Restore:'),...m.parts.map(k=>check(`${PNAME[k]} (${partMB(k,m.snap||S)}MB)`,!!T.rsSel[k],v=>{T.rsSel[k]=v;})),
+  h('div',{class:'row'},btn('Rename Backup',()=>go('input',{title:'Rename Backup',prompt:'New name:',value:p.name,ok:v=>{if(v===p.name){back();return;}const e=nameOk(v,bkDir());if(e)return e;const dd=bkDir();dd.c[v]=dd.c[p.name];delete dd.c[p.name];save();stack.pop();stack.at(-1).params.name=v;render(true);}})),
+   btn('Delete Backup',()=>go('rsdel',{name:p.name}))),slider('Swipe to Restore',()=>doRestore(p.name))]};};
+function applyRestore(k,s){if(k==='system'){S.os=s.os?{...s.os}:null;S.gapps=s.gapps;}if(k==='boot'){S.bootKind=s.bootKind;S.magisk=s.magisk;}if(k==='recovery')S.recoveryKind=s.recoveryKind;if(k==='data'){S.dataPresent=s.dataPresent;S.dataRom=s.dataRom;}}
+function doRestore(name){const n=bkDir().c[name],m=n.m||guessMeta(n),parts=m.parts.filter(k=>T.rsSel[k]);if(!parts.length)return alertBox('No partitions selected for restore.');
+ const snap=m.snap||snapshot(),dig=Object.keys(n.c).some(k=>k.endsWith('.sha2'));
+ const steps=[{log:`Restore folder: '${BKP}/${name}'`,ms:300,status:'Restoring...'},{log:'Calculating restore details...',ms:500},dig?{log:'Verifying Digest...',ms:900,status:'Verifying Digest...'}:{log:'Skipping Digest check: no Digest file found',ms:200},{log:'[RESTORE STARTED]',ms:200}];
+ let total=0;for(const k of parts){const mb=partMB(k,snap);total+=mb;
+  if(k==='system'||k==='cache')steps.push({log:`Wiping ${PNAME[k]}...`,ms:500});if(k==='data')steps.push({log:'Wiping data without wiping /data/media ...',ms:600});
+  steps.push({log:`Restoring ${PNAME[k]}...`,ms:dur(mb),status:'Restoring '+PNAME[k],act:()=>applyRestore(k,snap)});}
+ steps.push({log:['Updating partition details...','...done'],ms:400},{log:`[RESTORE COMPLETED IN ${Math.round(total/22)+3} SECONDS]`,ms:100});
+ runOp({title:'Restore',steps,after:std});}
+P.rsdel=({name})=>({title:'Delete Backup',body:[kv('Backup: ',name),h('p',{class:'warn'},'This cannot be undone.'),
+ slider('Swipe to Delete',()=>runOp({title:'Delete Backup',status:'Deleting...',popExtra:2,after:backOnly,steps:[{log:`Deleting backup '${name}'...`,ms:700,act:()=>{const d=bkDir();if(d)delete d.c[name];}},{log:'Backup deleted.',ms:100}]}))]});
+
+/* ---------- entrada de texto genérica ---------- */
+P.input=(p)=>{const inp=h('input',{class:'kbd',value:p.value||'',autocapitalize:'off',autocomplete:'off',autocorrect:'off',spellcheck:'false',enterkeyhint:'done','aria-label':p.prompt}),err=h('div',{class:'err-line'});
+ const ok=()=>{const r=p.ok(inp.value.trim());if(typeof r==='string')err.textContent=r;};inp.addEventListener('keydown',e=>{if(e.key==='Enter')ok();});
+ return {title:p.title,body:[h('p',{class:'info'},p.prompt),h('div',{class:'inrow'},inp,btn('OK',ok)),err]};};
+
+/* ---------- Mount ---------- */
+P.mount=()=>({title:'Mount',body:[h('p',{class:'info'},'Select Partitions to Mount:'),
+ ...[['system','System'],['data','Data'],['cache','Cache'],['usbotg','USB-OTG']].map(([k,l])=>check(l,S.mounted[k],v=>{if(k==='usbotg'&&v){log("E:Failed to mount '/usb-otg' (No such device)");return;}S.mounted[k]=v;})),
+ check('Mount system partition read-only',S.roSystem,v=>{S.roSystem=v;}),
+ h('div',{class:'row'},btn(S.mtp?'Disable MTP':'Enable MTP',()=>{S.mtp=!S.mtp;log(S.mtp?'MTP Enabled':'MTP Disabled');save();render();}),btn('Select Storage',selectStorage)),
+ h('p',{class:'info dim'},'Storage: '+storageLabel())]});
+
+/* ---------- Settings ---------- */
+P.settings=()=>({title:'Settings',body:[
+ check('Zip file signature verification',S.settings.verify,v=>{S.settings.verify=v;}),check('Use rm -rf instead of formatting',S.settings.rmrf,v=>{S.settings.rmrf=v;}),
+ check('Skip Digest generation during backup',S.settings.skipDigest,v=>{S.settings.skipDigest=v;}),check('Use 24-hour clock',S.settings.h24,v=>{S.settings.h24=v;tick();}),
+ check('Enable vibration',S.settings.vibrate,v=>{S.settings.vibrate=v;}),
+ h('div',{class:'row'},btn('Time Zone',()=>go('tz')),btn('Screen',()=>go('screen'))),
+ h('div',{class:'row'},btn('Restore Defaults',()=>{S.settings=defaults().settings;applyBright();save();tick();render();log('Settings restored to defaults.');}))]});
+P.tz=()=>({title:'Time Zone',body:[h('p',{class:'info'},'Select Time Zone:'),...TZS.map(([l,z])=>radio(l,S.settings.tz===z,()=>{S.settings.tz=z;tick();}))]});
+P.screen=()=>{const lab=h('span',{},S.settings.bright+'%'),rng=h('input',{type:'range',min:'10',max:'100',value:String(S.settings.bright),class:'rng','aria-label':'Brightness'});
+ rng.addEventListener('input',()=>{S.settings.bright=+rng.value;lab.textContent=rng.value+'%';applyBright();});rng.addEventListener('change',save);
+ return {title:'Screen',body:[h('p',{class:'info'},'Brightness: ',lab),rng,check('Enable screen timeout',S.settings.timeoutOn,v=>{S.settings.timeoutOn=v;}),
+  h('p',{class:'info dim'},'Screen timeout:'),...[30,60,120,300].map(s=>radio(s+' seconds',S.settings.timeout===s,()=>{S.settings.timeout=s;}))]};};
+
+/* ---------- Advanced ---------- */
+P.advanced=()=>({title:'Advanced',cls:'main',body:h('div',{class:'grid'},
+ mbtn('Copy Log',ICON.log,copyLog),mbtn('Fix Contexts',ICON.fix,()=>go('fixctx')),mbtn('Terminal',ICON.advanced,()=>go('term')),
+ mbtn('File Manager',ICON.folder,()=>go('fm')),mbtn('ADB Sideload',ICON.sideload,()=>go('sideload')))});
+function copyLog(){if(!S.mounted.data)return alertBox('Unable to mount storage (/data is not mounted).');
+ runOp({title:'Copy Log',status:'Copying log...',after:backOnly,steps:[{log:'Copied recovery log to /data/media/0/recovery.log.',ms:400,act:()=>{const t=logsText();S.fs.sdcard.c['recovery.log']=F(t.length,{txt:t});}}]});}
+P.fixctx=()=>({title:'Fix Contexts',body:[h('p',{class:'info'},'Fixes SELinux contexts on /data and /cache.'),h('p',{class:'warn'},'This is rarely needed and can cause problems if your ROM uses different contexts.'),
+ slider('Swipe to Fix Contexts',()=>runOp({title:'Fix Contexts',status:'Fixing contexts...',popExtra:1,after:backOnly,steps:[{log:'Fixing /data/data/ contexts.',ms:1600},{log:'Fixing /cache contexts.',ms:500},{log:'Done fixing contexts',ms:150,cls:'hl'}]}))]});
+/* File Manager */
+P.fm=()=>({title:'File Manager',body:[h('p',{class:'info dim'},'Select a file to see options:'),browser('fm',null,path=>go('fmfile',{path}))]});
+P.fmfile=({path})=>{const f=vget(path);if(!f)return {title:'File Manager',body:[h('p',{class:'info'},'File not found.')]};
+ return {title:'File Manager',body:[kv('File: ',path),kv('Size: ',fmtSize(f.s)),h('div',{class:'grid2'},
+  btn('Copy File',()=>{curDir.fmdest=parentOf(path);go('fmdest',{src:path,op:'copy'});}),btn('Move File',()=>{curDir.fmdest=parentOf(path);go('fmdest',{src:path,op:'move'});}),
+  btn('chmod 755',()=>runOp({title:'chmod',after:backOnly,steps:[{log:`chmod 755 '${path}'`,ms:300}]})),btn('Delete',()=>go('fmdel',{path})),
+  btn('Rename File',()=>go('input',{title:'Rename File',prompt:'New name:',value:baseOf(path),ok:v=>{if(!v||v.includes('/'))return 'Invalid name.';const [pn,nm]=vparent(path);if(!pn||!pn.c[nm])return 'File not found.';if(v===nm){back();return;}if(pn.c[v])return 'A file with this name already exists.';
+   pn.c[v]=pn.c[nm];delete pn.c[nm];save();stack.pop();stack.pop();render(true);}})))]};};
+P.fmdest=({src,op})=>({title:op==='copy'?'Copy File':'Move File',body:[kv('Source: ',src),h('p',{class:'info dim'},'Browse to the destination folder, then press Select Folder.'),
+ browser('fmdest',null,null,true),btn('Select Folder',()=>fmTransfer(src,op,curDir.fmdest||'/sdcard'))]});
+function fmTransfer(src,op,dst){const [pn,name]=vparent(src),node=pn&&pn.c[name],dn=vget(dst);if(!node||!dn||dn.t!=='d')return alertBox('Invalid destination.');
+ if(op==='move'&&parentOf(src)===dst)return alertBox('Source and destination are the same folder.');
+ runOp({title:op==='copy'?'Copy File':'Move File',status:op==='copy'?'Copying...':'Moving...',popExtra:2,after:backOnly,steps:[{log:`${op==='copy'?'Copying':'Moving'} '${src}' to '${resolve(dst,name)}'`,ms:Math.min(3000,300+dirSize(node)/MB*3),
+  act:()=>{dn.c[name]=op==='copy'?clone(node):node;if(op==='move')delete pn.c[name];}}]});}
+P.fmdel=({path})=>({title:'Delete',body:[kv('File: ',path),h('p',{class:'warn'},'This cannot be undone.'),
+ slider('Swipe to Delete',()=>runOp({title:'Delete',status:'Deleting...',popExtra:2,after:backOnly,steps:[{log:`Deleting '${path}'`,ms:400,act:()=>{const [pn,nm]=vparent(path);if(pn)delete pn.c[nm];}}]}))]});
+/* ADB Sideload */
+const PC_FILES=['lineage-14.1-20190115-UNOFFICIAL-hammerhead.zip','open_gapps-arm-7.1-pico-20190115.zip','Magisk-v20.4.zip'];
+P.sideload=()=>({title:'ADB Sideload',body:[check('Wipe Dalvik Cache',T.slDalvik,v=>{T.slDalvik=v;}),check('Wipe Cache',T.slCache,v=>{T.slCache=v;}),
+ h('p',{class:'info dim'},'En el simulador, tras iniciar podrás elegir qué zip envía el PC con adb sideload (útil si has borrado el almacenamiento interno).'),
+ slider('Swipe to Start Sideload',()=>{log('Starting ADB sideload feature...');go('slwait');})]});
+P.slwait=(p,top)=>{top.onBack=()=>{log('Cancelling ADB sideload...');};
+ return {title:'ADB Sideload',cls:'fill',body:[h('div',{class:'op-con'},consoleEl()),h('div',{class:'op-status'},'Waiting for host: adb sideload <file.zip>'),h('div',{class:'pbar ind'},h('i')),
+  h('div',{class:'row'},btn('Cancel',()=>back()),btn('PC: enviar zip',pickSideload))]};};
+function pickSideload(){let pick=0;const list=h('div');
+ const draw=()=>list.replaceChildren(...PC_FILES.map((f,i)=>h('button',{class:'chk radio'+(pick===i?' on':''),onclick:()=>{pick=i;draw();}},h('span',{class:'box'}),h('span',{class:'lbl small'},f))));draw();
+ modal('adb sideload (PC)',[h('div',{class:'mono dim'},'$ adb sideload <archivo>'),list],[{label:'Cancel'},{label:'Send',fn:()=>startSideload(PC_FILES[pick])}]);}
+function startSideload(name){stack.pop();const st=flashSteps([{path:'/sideload/package.zip',name,sideload:true}]);
+ const ex=[];if(T.slDalvik)ex.push('dalvik');if(T.slCache)ex.push('cache');if(ex.length&&!st.some(s=>s.fail))st.push(...wipeSteps(ex));
+ runOp({title:'ADB Sideload',status:'Installing '+name,popExtra:1,steps:st,after:flashAfter});}
+/* Terminal */
+const term={cwd:'/',buf:'Type "help" for available commands.\n',hist:[],hi:0};
+const tprompt=()=>term.cwd+' # ';
+function genText(g){
+ if(g==='buildprop'){const o=S.os;if(!o)return '';const lin=o.rom==='lineage';
+  return ['# begin build properties',`ro.build.id=${o.build}`,`ro.build.display.id=${lin?'lineage_hammerhead-userdebug 7.1.2 NJH47F':'M4B30Z'}`,`ro.build.version.release=${o.android}`,`ro.build.version.sdk=${lin?25:23}`,`ro.build.type=${lin?'userdebug':'user'}`,'ro.product.model=Nexus 5','ro.product.brand=google','ro.product.name=hammerhead','ro.product.device=hammerhead','ro.product.manufacturer=LGE','ro.board.platform=msm8974',lin?'ro.lineage.version=14.1-20190115-UNOFFICIAL-hammerhead':null,'ro.build.fingerprint=google/hammerhead/hammerhead:6.0.1/M4B30Z/3437181:user/release-keys','# end build properties'].filter(Boolean).join('\n');}
+ if(g==='procver')return 'Linux version 3.4.0-gd59db4e (android-build@localhost) (gcc version 4.8 (GCC)) #1 SMP PREEMPT Wed Oct 7 18:50:38 UTC 2015';
+ if(g==='cpuinfo')return 'Processor\t: ARMv7 Processor rev 0 (v7l)\nprocessor\t: 0\nprocessor\t: 1\nprocessor\t: 2\nprocessor\t: 3\nFeatures\t: swp half thumb fastmult vfp edsp neon vfpv3 tls vfpv4 idiva idivt\nHardware\t: Qualcomm MSM 8974 HAMMERHEAD (Flattened Device Tree)\nRevision\t: 000b';
+ if(g==='mounts')return mountsText();
+ if(g==='fstab')return ['/boot\temmc\t/dev/block/platform/msm_sdcc.1/by-name/boot','/recovery\temmc\t/dev/block/platform/msm_sdcc.1/by-name/recovery','/system\text4\t/dev/block/platform/msm_sdcc.1/by-name/system','/cache\text4\t/dev/block/platform/msm_sdcc.1/by-name/cache','/data\text4\t/dev/block/platform/msm_sdcc.1/by-name/userdata\tlength=-16384','/efs1\temmc\t/dev/block/platform/msm_sdcc.1/by-name/modemst1\tflags=backup=1;display="EFS"','/efs2\temmc\t/dev/block/platform/msm_sdcc.1/by-name/modemst2\tflags=backup=1;subpartitionof=/efs1','/usb-otg\tauto\t/dev/block/sda1\t/dev/block/sda\tflags=removable;storage;display="USB-OTG"'].join('\n');
+ if(g==='log')return logsText().trimEnd();return '';}
+function mountsText(){const l=['rootfs / rootfs rw,seclabel 0 0','tmpfs /dev tmpfs rw,seclabel,nosuid,relatime,mode=755 0 0','proc /proc proc rw,relatime 0 0','sysfs /sys sysfs rw,seclabel,relatime 0 0'];
+ if(S.mounted.system)l.push(`/dev/block/mmcblk0p25 /system ext4 ${S.roSystem?'ro':'rw'},seclabel,relatime,data=ordered 0 0`);
+ if(S.mounted.cache)l.push('/dev/block/mmcblk0p27 /cache ext4 rw,seclabel,relatime,data=ordered 0 0');
+ if(S.mounted.data)l.push('/dev/block/mmcblk0p28 /data ext4 rw,seclabel,relatime,data=ordered 0 0','/dev/block/mmcblk0p28 /sdcard ext4 rw,seclabel,relatime,data=ordered 0 0');return l.join('\n');}
+function props(){const o=S.os;return {'ro.product.device':'hammerhead','ro.product.model':'Nexus 5','ro.product.brand':'google','ro.product.manufacturer':'LGE','ro.hardware':'hammerhead','ro.board.platform':'msm8974','ro.bootloader':'HHZ20h','ro.baseband':'M8974A-2.0.50.2.30','ro.serialno':SERIAL,'ro.twrp.version':VER,'ro.build.id':o?o.build:'','ro.build.version.release':o?o.android:'','ro.secure':'1','ro.debuggable':'1','sys.usb.config':S.mtp?'mtp,adb':'adb'};}
+function dfText(){const rows=[['Filesystem','1K-blocks','Used','Available','Use%','Mounted on']];
+ const add=(dev,t,u,mp)=>{t*=1024;u=Math.round(u*1024);rows.push([dev,String(t),String(u),String(t-u),Math.round(u/t*100)+'%',mp]);};
+ add('tmpfs',925,.1,'/dev');if(S.mounted.system)add('/dev/block/mmcblk0p25',1007,partMB('system'),'/system');if(S.mounted.cache)add('/dev/block/mmcblk0p27',677,14,'/cache');if(S.mounted.data)add('/dev/block/mmcblk0p28',DATA_TOTAL,usedMB(),'/data');
+ const w=rows[0].map((_,i)=>Math.max(...rows.map(r=>r[i].length)));return rows.map(r=>r.map((c,i)=>i===0||i===5?c.padEnd(w[i]):c.padStart(w[i])).join(' ')).join('\n');}
+function runCmd(line){const a=line.trim().split(/\s+/).filter(Boolean);if(!a.length)return '';const c=a[0],args=a.slice(1),flags=args.filter(x=>x.startsWith('-')).join(''),pos=args.filter(x=>!x.startsWith('-'));
+ const R=p=>resolve(term.cwd,p);
+ switch(c){
+  case 'help':return 'Commands: ls [-l] [dir], cd <dir>, pwd, cat <file>, echo, getprop [key], df, mount, umount <dir>, rm [-r] <path>, mkdir <dir>, uname [-a], whoami, id, date, reboot [recovery|bootloader|-p], clear, exit';
+  case 'pwd':return term.cwd;
+  case 'cd':{const p=R(pos[0]||'/'),n=vget(p);if(!n)return `cd: ${pos[0]}: No such file or directory`;if(n.t!=='d')return `cd: ${pos[0]}: Not a directory`;term.cwd=p;return '';}
+  case 'ls':{const p=R(pos[0]||'.'),n=vget(p);if(!n)return `ls: ${pos[0]}: No such file or directory`;
+   const ent=n.t==='d'?Object.keys(n.c).sort().map(k=>[k,n.c[k]]):[[baseOf(p),n]];
+   if(flags.includes('l'))return ent.map(([k,x])=>(x.t==='d'?'drwxrwx--x':'-rw-rw----')+' root     sdcard_rw '+String(x.t==='d'?4096:x.s).padStart(10)+' 2019-01-10 21:14 '+k).join('\n');
+   return ent.map(([k,x])=>x.t==='d'?k+'/':k).join('  ');}
+  case 'cat':{if(!pos[0])return 'usage: cat <file>';return pos.map(f=>{const n=vget(R(f));if(!n)return `cat: ${f}: No such file or directory`;if(n.t==='d')return `cat: ${f}: Is a directory`;if(n.txt)return n.txt.trimEnd();if(n.gen)return genText(n.gen);return `cat: ${f}: binary file (${n.s} bytes)`;}).join('\n');}
+  case 'echo':return args.join(' ');
+  case 'getprop':{const pr=props();if(pos[0])return pr[pos[0]]||'';return Object.entries(pr).map(([k,v])=>`[${k}]: [${v}]`).join('\n');}
+  case 'df':return dfText();
+  case 'mount':return mountsText();
+  case 'umount':{const m={'/system':'system','/data':'data','/cache':'cache'}[R(pos[0]||'')];if(!m||!S.mounted[m])return `umount: can't unmount ${pos[0]||''}: Invalid argument`;S.mounted[m]=false;save();return '';}
+  case 'uname':return flags.includes('a')?'Linux localhost 3.4.0-gd59db4e #1 SMP PREEMPT Wed Oct 7 18:50:38 UTC 2015 armv7l GNU/Linux':'Linux';
+  case 'whoami':return 'root';
+  case 'id':return 'uid=0(root) gid=0(root) context=u:r:recovery:s0';
+  case 'date':return fmtDate(Date.now());
+  case 'rm':{if(!pos[0])return 'usage: rm [-r] <path>';const p=R(pos[0]),[pn,nm]=vparent(p);if(!pn||!pn.c[nm])return `rm: ${pos[0]}: No such file or directory`;if(pn.c[nm].t==='d'&&!flags.includes('r'))return `rm: ${pos[0]}: is a directory`;delete pn.c[nm];save();return '';}
+  case 'mkdir':{if(!pos[0])return 'usage: mkdir <dir>';const p=R(pos[0]),[pn,nm]=vparent(p);if(!pn||pn.t!=='d')return `mkdir: ${pos[0]}: No such file or directory`;if(pn.c[nm])return `mkdir: ${pos[0]}: File exists`;pn.c[nm]=D();save();return '';}
+  case 'reboot':{const t=pos[0]==='recovery'?'recovery':pos[0]==='bootloader'?'bootloader':flags.includes('p')?'poweroff':'system';setTimeout(()=>doReboot(t,true),400);return 'Rebooting...';}
+  case 'exit':setTimeout(()=>back(),50);return '';
+  default:return `/sbin/sh: ${c}: not found`;}}
+P.term=()=>{const out=h('div',{class:'con term-out'});out.textContent=term.buf;
+ const inp=h('input',{class:'term-in',autocapitalize:'off',autocomplete:'off',autocorrect:'off',spellcheck:'false',enterkeyhint:'send','aria-label':'Command'}),pr=h('span',{class:'term-pr'},tprompt());
+ inp.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){const cmd=inp.value;inp.value='';if(cmd.trim()){term.hist.push(cmd);term.hi=term.hist.length;}
+   if(cmd.trim()==='clear'){term.buf='';}else{const before=tprompt(),res=runCmd(cmd);term.buf+=before+cmd+'\n'+(res?res+'\n':'');}
+   out.textContent=term.buf;out.scrollTop=out.scrollHeight;pr.textContent=tprompt();}
+  else if(e.key==='ArrowUp'&&term.hist.length){term.hi=Math.max(0,term.hi-1);inp.value=term.hist[term.hi];e.preventDefault();}
+  else if(e.key==='ArrowDown'&&term.hist.length){term.hi=Math.min(term.hist.length,term.hi+1);inp.value=term.hist[term.hi]||'';e.preventDefault();}});
+ out.addEventListener('click',()=>inp.focus());requestAnimationFrame(()=>{out.scrollTop=out.scrollHeight;});
+ return {title:'Terminal Command',cls:'fill',body:[out,h('div',{class:'term-row'},pr,inp)]};};
+
+/* ---------- Reboot ---------- */
+P.reboot=()=>({title:'Reboot',cls:'main',body:h('div',{class:'grid'},mbtn('System',ICON.phone,()=>doReboot('system')),mbtn('Power Off',ICON.reboot,()=>doReboot('poweroff')),
+ mbtn('Recovery',ICON.recov,()=>doReboot('recovery')),mbtn('Bootloader',ICON.bl,()=>doReboot('bootloader')))});
+P.noos=({target})=>({title:'Reboot',body:[h('p',{class:'warn big'},'No OS Installed! Are you sure you wish to reboot?'),slider('Swipe to Reboot',()=>doReboot(target,true))]});
+function doReboot(target,confirmed){if(target==='system'&&!S.os&&!confirmed){go('noos',{target});return;}
+ save();const t=++bootToken;setMode('black');showOv(h('div',{class:'scr-off'}));
+ setTimeout(()=>{if(t!==bootToken)return;({system:bootSystem,recovery:bootRecovery,bootloader:goFastboot,poweroff:powerOff})[target]();},700);}
+
+/* ---------- modos del dispositivo ---------- */
+let mode='black',bootToken=0,fbSel=0,blank=false,lastInput=Date.now();
+function setMode(m){if(m!=='recovery'){opGen++;busy=false;}mode=m;$ui.style.display=m==='recovery'?'flex':'none';$ov.style.display=m==='recovery'?'none':'block';
+ $inner.querySelectorAll('.modal').forEach(x=>x.remove());setBlank(false);}
+function setBlank(v){blank=v;$blank.style.display=v?'block':'none';if(!v)lastInput=Date.now();}
+const showOv=(...k)=>$ov.replaceChildren(...k);
+const logoScreen=n=>h('div',{class:'logo-scr'},h('div',{class:'logo-txt'},'Nexus 5'),h('div',{class:'lock',html:ICON.unlock}),n?h('div',{class:'loopn'},'bootloop: reinicio #'+n):null);
+const splashScreen=()=>h('div',{class:'splash'},h('div',{class:'sp-t'},'Team Win'),h('div',{class:'sp-s'},'Recovery Project'),h('div',{class:'sp-v'},VER),h('div',{class:'sp-bar'},h('i')));
+function bootAnim(n){const lin=S.os&&S.os.rom==='lineage';return h('div',{class:'ba'},lin?h('div',{class:'ba-lin-mark'},h('i'),h('b')):h('div',{class:'ba-dots'},h('i'),h('i'),h('i'),h('i')),
+ h('div',{class:'ba-word'},lin?'LineageOS':'Android'),n?h('div',{class:'ba-loop'},'bootloop: reinicio #'+n):null);}
+function clockStr(){try{return new Intl.DateTimeFormat(S.settings.h24?'en-GB':'en-US',{hour:'numeric',minute:'2-digit',hour12:!S.settings.h24,timeZone:S.settings.tz}).format(new Date());}catch(e){return new Date().toTimeString().slice(0,5);}}
+function dateStr(){try{return new Intl.DateTimeFormat('en-US',{weekday:'long',month:'long',day:'numeric',timeZone:S.settings.tz}).format(new Date());}catch(e){return new Date().toDateString();}}
+function androidScreen(first){const o=S.os;const ab=(l,fn)=>h('button',{class:'abtn',onclick:fn},l);
+ return h('div',{class:'and'+(o.rom==='lineage'?' lin':'')},h('div',{class:'and-sb'},h('span',{},'LTE'),h('span',{class:'live-clock'},clockStr()),h('span',{},S.battery+'%')),
+  first?h('div',{class:'and-setup'},h('div',{class:'and-big'},'Welcome'),h('div',{},'Asistente de configuración: primer arranque tras borrar los datos')):h('div',{class:'and-lock'},h('div',{class:'and-clock live-clock'},clockStr()),h('div',{class:'and-date'},dateStr())),
+  h('div',{class:'and-card'},h('div',{class:'and-os'},`${o.name} (Android ${o.android})`),h('div',{},'Build: '+o.build),h('div',{},'Root: '+(S.magisk?'Magisk':'no')),h('div',{},'Google Apps: '+(S.gapps?'sí':'no')),
+   h('div',{class:'and-btns'},ab('adb reboot recovery',()=>doReboot('recovery')),ab('adb reboot bootloader',()=>doReboot('bootloader')),ab('Apagar',()=>doReboot('poweroff')))));}
+async function bootSystem(){const t=++bootToken;setMode('boot');showOv(logoScreen());await sleep(1800);if(t!==bootToken)return;
+ if(S.bootKind==='twrp'){toast('La partición boot contiene una imagen de TWRP: el teléfono arranca en recovery en vez de en el sistema.');return startRecovery(t);}
+ if(!S.os){toast('No hay sistema operativo: el teléfono se queda en el logo. Usa Power + Vol − para ir al bootloader.');return;}
+ const kernelOk=S.bootKind===S.os.rom,dataOk=!S.dataPresent||S.dataRom===S.os.rom;let n=0;
+ while(true){if(kernelOk){showOv(bootAnim(n));await sleep(4200);}else{showOv(logoScreen(n));await sleep(2400);}
+  if(t!==bootToken)return;if(kernelOk&&dataOk)break;n++;
+  toast(!kernelOk?'Bootloop: el boot.img no corresponde a la ROM instalada. Flashea el boot correcto o reinstala la ROM. Sal con Power + Vol −.':'Bootloop: los datos son de otra ROM (dirty flash). Entra en recovery y haz Wipe > Factory Reset. Sal con Power + Vol −.');
+  showOv(h('div',{class:'scr-off'}));await sleep(600);if(t!==bootToken)return;}
+ const first=!S.dataPresent;if(first){S.dataPresent=true;S.dataRom=S.os.rom;save();}
+ setMode('android');showOv(androidScreen(first));}
+async function startRecovery(t){setMode('splash');showOv(splashScreen());await sleep(1800);if(t!==bootToken)return;initRecovery();setMode('recovery');}
+async function bootRecovery(){const t=++bootToken;setMode('boot');showOv(logoScreen());await sleep(1300);if(t!==bootToken)return;
+ if(S.recoveryKind!=='twrp'){toast('La partición recovery ya no contiene TWRP: el teléfono arranca el sistema. Flashea la imagen de TWRP en Recovery para recuperarlo.');return bootSystem();}
+ startRecovery(t);}
+function powerOff(){++bootToken;setMode('off');showOv(h('div',{class:'scr-off'}));toast('Apagado. Pulsa Power para encender o Power + Vol − para entrar al bootloader.');}
+const FB_OPTS=[['START','#35d24a'],['Restart bootloader','#ff3b30'],['Recovery mode','#ff3b30'],['Power off','#ff3b30']];
+function fbScreen(){const [l,c]=FB_OPTS[fbSel];const r=(k,v,red)=>h('div',{},k+' - ',red?h('span',{class:'r'},v):v);
+ return h('div',{class:'fbs'},h('button',{class:'fb-opt',style:`color:${c}`,onclick:fbSelect,'aria-label':'Confirmar '+l},l),
+  h('div',{class:'fb-mid'},'Vol + / Vol − para cambiar de opción. Power (o tocar la opción) para confirmar.'),
+  h('div',{class:'fb-info'},h('div',{class:'r'},'FASTBOOT MODE'),r('PRODUCT_NAME','hammerhead'),r('VARIANT','hammerhead D820(H) 16GB'),r('HW VERSION','rev_11'),r('BOOTLOADER VERSION','HHZ20h'),
+   r('BASEBAND VERSION','M8974A-2.0.50.2.30'),r('CARRIER INFO','None'),r('SERIAL NUMBER',SERIAL),r('SIGNING','production'),r('SECURE BOOT','enabled'),r('LOCK STATE','unlocked',true)));}
+function goFastboot(){++bootToken;setMode('fastboot');fbSel=0;showOv(fbScreen());}
+function fbMove(d){fbSel=(fbSel+d+4)%4;showOv(fbScreen());}
+function fbSelect(){const t=++bootToken,s=fbSel;showOv(h('div',{class:'scr-off'}));setTimeout(()=>{if(t!==bootToken)return;[bootSystem,goFastboot,bootRecovery,powerOff][s]();},600);}
+function hw(k){vib(25);lastInput=Date.now();
+ if(k==='combo'){toast('Power + Vol −: reinicio forzado al bootloader.');return goFastboot();}
+ if(mode==='off'&&k==='power')return bootSystem();
+ if(mode==='fastboot'){if(k==='volup')fbMove(-1);else if(k==='voldown')fbMove(1);else fbSelect();return;}
+ if((mode==='recovery'||mode==='android')&&k==='power')setBlank(!blank);}
+function initRecovery(){opGen++;busy=false;logs=[];S.mounted={system:false,data:true,cache:true,usbotg:false};zipQ=[];T.installImg=false;
+ stack=[{name:'main',params:{}}];toggleCon(false);
+ ["Setting up '/data' as data/media for internal storage.",'Updating partition details...','...done','Full SELinux support is present.',S.mtp?'MTP Enabled':'MTP Disabled'].forEach(l=>log(l));
+ lastInput=Date.now();save();render(true);}
+
+/* ---------- arranque ---------- */
+const $screen=$('#screen'),$inner=$('#inner'),$ui=$('#ui'),$ov=$('#ov'),$page=$('#page'),$title=$('#title'),$conov=$('#conov'),$blank=$('#blank'),$dim=$('#dim'),$notice=$('#notice');
+document.querySelectorAll('[data-ico]').forEach(e=>{e.innerHTML=ICON[e.dataset.ico];});
+document.querySelectorAll('[data-hw]').forEach(b=>b.addEventListener('click',()=>hw(b.dataset.hw)));
+$('#nav-back').addEventListener('click',()=>back());$('#nav-home').addEventListener('click',home);$('#nav-con').addEventListener('click',()=>toggleCon());
+$blank.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();setBlank(false);});
+$screen.addEventListener('pointerdown',()=>{lastInput=Date.now();},true);
+document.addEventListener('keydown',()=>{lastInput=Date.now();},true);
+$inner.addEventListener('click',e=>{if(e.target.closest('button'))vib(12);});
+let toastT;function toast(m){$notice.textContent=m;$notice.style.opacity='1';clearTimeout(toastT);toastT=setTimeout(()=>{$notice.style.opacity='0';},14000);}
+function applyBright(){$dim.style.opacity=((100-S.settings.bright)/100*.8).toFixed(2);}
+let ticks=0;
+function tick(){const c=clockStr();$('#clock').textContent=c;document.querySelectorAll('.live-clock').forEach(e=>{e.textContent=c;});
+ if(ticks%5===0)$('#cpu').textContent='CPU '+(34+Math.round(Math.random()*4))+'°C';
+ if(ticks>0&&ticks%180===0&&S.battery>5){S.battery--;save();}
+ $('#bat').textContent=S.battery+'%';
+ if(mode==='recovery'&&S.settings.timeoutOn&&!blank&&Date.now()-lastInput>S.settings.timeout*1000)setBlank(true);}
+setInterval(()=>{ticks++;tick();},1000);
+const $bare=$('#bare');$bare.addEventListener('click',()=>{const on=document.body.classList.toggle('bare');$bare.textContent=on?'Ver con marco':'Pantalla completa';});
+let resetArm=0;const $reset=$('#reset');
+$reset.addEventListener('click',()=>{if(Date.now()-resetArm>3000){resetArm=Date.now();$reset.textContent='Toca otra vez para confirmar';setTimeout(()=>{$reset.textContent='Reiniciar simulación';},3000);return;}
+ resetArm=0;$reset.textContent='Reiniciar simulación';S=defaults();memo={};curDir={install:'/sdcard',fm:'/'};term.cwd='/';term.buf='Type "help" for available commands.\n';try{localStorage.removeItem(KEY);}catch(e){}
+ applyBright();toast('Simulación reiniciada: Android 6.0.1 de fábrica con TWRP en recovery.');startRecovery(++bootToken);});
+applyBright();tick();startRecovery(++bootToken);
+toast('Estás en TWRP. Toca para navegar; usa los botones de abajo como botones físicos cuando el teléfono lo pida.');
+</script>
+</body>
+</html>
